@@ -245,37 +245,30 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 					break;
 				}
 			}
-		}
-	}
-
-	// If no existing memory blocks were found ; inode and memory block needs to be written to disk
-	int new_block_no = get_avail_blkno();
-	if (entry_added == 0 && get_avail_blkno() != -1) {
-		// Creating new block to add with the entry in it
-		char new_block[BLOCK_SIZE];
-		memset(new_block, 0, BLOCK_SIZE);
-		struct dirent* entry = (struct dirent*)new_block;
-		entry[0].ino = f_ino;
-		entry[0].valid = 1;
-		strncpy(entry[0].name, fname, name_len);
-		entry[0].len = name_len;
-		// Traverse direct pointers to find a spot
-		for (int i = 0; i < 16; i++) {
-			// If a block is -1, initialize it
-			if (dir_inode.direct_ptr[i] == -1) {
-				dir_inode.direct_ptr[i] = new_block_no;
-			  // write new block to disk
-				bio_write(new_block_no, new_block);
-				// write updated inode to disk
-				writei(dir_inode.ino, &dir_inode);
-				entry_added = 1;
-				break;
+		} else { // if direct ptr does not exist, initialize it and add the entry there
+			int new_block_no = get_avail_blkno();
+			if (new_block_no == -1) {
+				printf("No available blocks on disk.\n");
+				return -1;
 			}
+			char new_block[BLOCK_SIZE];
+			memset(new_block, 0, BLOCK_SIZE);
+			struct dirent* entry = (struct dirent*)new_block;
+
+			entry[0].ino = f_ino;
+			entry[0].valid = 1;
+			strncpy(entry[0].name, fname, name_len);
+			entry[0].len = name_len;
+
+			dir_inode.direct_ptr[i] = new_block_no;
+			bio_write(new_block_no, new_block); // write new block to disk
+			entry_added = 1;
+			break;
 		}
 	}
-
 	// Return 0 if success, -1 otherwise
 	if (entry_added == 1) {
+		writei(dir_inode.ino, &dir_inode); // write updated inode to disk
 		return 0;
 	} else {
 		return -1;
