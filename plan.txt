@@ -1,7 +1,29 @@
+Suggested steps
 1. rufs_mkfs, rufs_init, and rufs_destroy - disk stuff
 2. helper functions
 3. bitmap operations
 4. inode helper operations (readi and writei)
 5. directory operations (HARDEST)
-6. Once you implement some of the helper functions, you can start using them within the rest of the rufs
-functions you have to implement.
+6. testing
+
+Disk Size = 32MB
+Block Size = 4KB
+Total Blocks = Disk Size / Block Size = 8192
+
+Layout of disk:
+- Superblock
+- Bitmaps
+- Inode Area
+- Data Blocks
+
+Given helper functions:
+- dev_init(const char* diskfile_path): creates a file which is your new emulated disk
+- dev_open(const char* diskfile_path): function to open the disk file
+- dev_close(): function to close the disk file
+- bio_read(const int block_num, void *buf): read a block from the disk
+- bio_write(const int block_num, const void *buf): write a block to the disk
+
+Inodes:
+- Represents file metadata
+- Stored in inode table (blocks 3-7)
+- Offset = size of inode * inode number

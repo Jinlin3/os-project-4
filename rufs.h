@@ -15,7 +15,10 @@
 
 #define MAGIC_NUM 0x5C3A
 #define MAX_INUM 1024
-#define MAX_DNUM 16384
+#define MAX_DNUM 8192
+
+// Contains inode, superblock, and dirent structures
+// Provides functions for bitmap operations
 
 
 struct superblock {

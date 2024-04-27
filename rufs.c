@@ -22,13 +22,83 @@
 #include "block.h"
 #include "rufs.h"
 
+// User-facing file system operations
+
 char diskfile_path[PATH_MAX];
 
 // Declare your in-memory data structures here
 
+struct superblock* superblock;
+bitmap_t inode_bitmap;
+bitmap_t data_block_bitmap;
+int inodes_per_block = BLOCK_SIZE / sizeof(struct inode);
+
 /* 
  * Get available inode number from bitmap
  */
+
+void superblock_init() {
+	superblock->magic_num = MAGIC_NUM;
+	superblock->max_inum = MAX_INUM;
+	superblock->max_dnum = MAX_DNUM;
+	superblock->i_bitmap_blk = 1;
+	superblock->d_bitmap_blk = 2;
+	superblock->i_start_blk = 3;
+	superblock->d_start_blk = 8;
+
+	bio_write(0, superblock);
+}
+
+void inode_bitmap_init() {
+	inode_bitmap = malloc(BLOCK_SIZE);
+	memset(inode_bitmap, 0, BLOCK_SIZE);
+	bio_write(1, inode_bitmap);
+}
+
+void data_block_bitmap_init() {
+	data_block_bitmap = malloc(BLOCK_SIZE);
+	memset(data_block_bitmap, 0, BLOCK_SIZE);
+	bio_write(2, data_block_bitmap);
+}
+
+// calculates the inode block number
+int calc_inode_block_no(int ino_no) {
+	int starting_block = superblock->i_start_blk;
+	return (starting_block + (ino_no / inodes_per_block));
+}
+
+// calculates the byte offset for the specific inode
+int calc_inode_offset(int ino_no) {
+	return ((ino_no % inodes_per_block) * sizeof(struct inode));
+}
+
+void root_inode_init() {
+	struct inode root_inode;
+	root_inode.ino = 0;
+	root_inode.valid = 1;
+	root_inode.size = 0;
+	root_inode.type = S_IFDIR;
+	root_inode.link = 2;
+	root_inode.direct_ptr[0] = superblock->d_start_blk;
+	// initializing other ptrs to -1 to indicate unused
+	for (int i = 1; i < 16; i++) {
+		root_inode.direct_ptr[i] = -1;
+	}
+	for (int i = 0; i < 8; i++) {
+		root_inode.indirect_ptr[i] = -1;
+	}
+	// Writing to disk
+	int inode_block_no = calc_inode_block_no(root_inode.ino);
+	int inode_offset = calc_inode_offset(root_inode.ino);
+	char inode_block[BLOCK_SIZE];
+	// Reading block from disk
+	bio_read(inode_block_no, inode_block);
+	// Modifying the block in memory
+	memcpy(inode_block + inode_offset, &root_inode, sizeof(struct inode));
+	// Writing block back to disk
+	bio_write(inode_block_no, inode_block);
+}
+
 int get_avail_ino() {
 
 	// Step 1: Read inode bitmap from disk
@@ -139,19 +209,21 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
  * Make file system
  */
 int rufs_mkfs() {
-
 	// Call dev_init() to initialize (Create) Diskfile
-
+	dev_init(diskfile_path);
 	// write superblock information
-
+	superblock_init();
 	// initialize inode bitmap
-
+	inode_bitmap_init();
 	// initialize data block bitmap
-
+	data_block_bitmap_init();
 	// update bitmap information for root directory
-
+	set_bitmap(inode_bitmap, 0);
+	bio_write(superblock->i_bitmap_blk, inode_bitmap);
+	set_bitmap(data_block_bitmap, 0);
+	bio_write(superblock->d_bitmap_blk, data_block_bitmap);
 	// update inode for root directory
-
+	root_inode_init();
 	return 0;
 }
 
@@ -160,20 +232,27 @@ int rufs_mkfs() {
  * FUSE file operations
  */
 static void *rufs_init(struct fuse_conn_info *conn) {
-
+	superblock = malloc(sizeof(struct superblock));
 	// Step 1a: If disk file is not found, call mkfs
-
-  // Step 1b: If disk file is found, just initialize in-memory data structures
-  // and read superblock from disk
-
+	if (dev_open(diskfile_path) == -1) {
+		printf("Disk file not found. Formatting disk...\n");
+		rufs_mkfs();
+	} else {
+	// Step 1b: If disk file is found, just initialize in-memory data structures and read superblock from disk
+		bio_read(0, superblock);
+	}
+	printf("RUFS initialized.\n");
 	return NULL;
 }
 
 static void rufs_destroy(void *userdata) {
 
 	// Step 1: De-allocate in-memory data structures
-
+	free(superblock);
+	free(inode_bitmap);
+	free(data_block_bitmap);
 	// Step 2: Close diskfile
+	dev_close();
 
 }
 
@@ -246,7 +325,7 @@ static int rufs_rmdir(const char *path) {
 }
 
 static int rufs_releasedir(const char *path, struct fuse_file_info *fi) {
-c// For this project, you don't need to fill this function
+  // For this project, you don't need to fill this function
 	// But DO NOT DELETE IT!
     return 0;
 }

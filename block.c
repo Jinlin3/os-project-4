@@ -6,7 +6,6 @@
  *	File:	block.c
  *
  */
-
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +16,8 @@
 
 #include "block.h"
 
+// Basic block operations, acts as a disk driver reading blocks from disk
+
 //Disk size set to 32MB
 #define DISK_SIZE	32*1024*1024
 
@@ -25,7 +26,7 @@ int diskfile = -1;
 //Creates a file which is your new emulated disk
 void dev_init(const char* diskfile_path) {
     if (diskfile >= 0) {
-		return;
+		  return;
     }
     
     diskfile = open(diskfile_path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
@@ -45,8 +46,8 @@ int dev_open(const char* diskfile_path) {
     
     diskfile = open(diskfile_path, O_RDWR, S_IRUSR | S_IWUSR);
     if (diskfile < 0) {
-		perror("disk_open failed");
-		return -1;
+		  perror("disk_open failed");
+		  return -1;
     }
 	return 0;
 }
@@ -57,7 +58,7 @@ void dev_close() {
     }
 }
 
-//Read a block from the disk
+// Read a block from the disk
 int bio_read(const int block_num, void *buf) {
     int retstat = 0;
     retstat = pread(diskfile, buf, BLOCK_SIZE, block_num*BLOCK_SIZE);
@@ -70,7 +71,7 @@ int bio_read(const int block_num, void *buf) {
     return retstat;
 }
 
-//Write a block to the disk
+// Write a block to the disk
 int bio_write(const int block_num, const void *buf) {
     int retstat = 0;
     retstat = pwrite(diskfile, buf, BLOCK_SIZE, block_num*BLOCK_SIZE);
