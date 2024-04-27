@@ -146,24 +146,29 @@ int get_avail_blkno() {
  * inode operations
  */
 int readi(uint16_t ino, struct inode *inode) {
-
   // Step 1: Get the inode's on-disk block number
-
+	int block_no = calc_inode_block_no(ino);
   // Step 2: Get offset of the inode in the inode on-disk block
-
+	int offset = calc_inode_offset(ino);
   // Step 3: Read the block from disk and then copy into inode structure
+	char block[BLOCK_SIZE];
+	bio_read(block_no, block);
+	memcpy(inode, block + offset, sizeof(struct inode));
 
 	return 0;
 }
 
 int writei(uint16_t ino, struct inode *inode) {
-
 	// Step 1: Get the block number where this inode resides on disk
-	
+	int block_no = calc_inode_block_no(ino);
 	// Step 2: Get the offset in the block where this inode resides on disk
-
+	int offset = calc_inode_offset(ino);
 	// Step 3: Write inode to disk 
-
+	char block[BLOCK_SIZE];
+	bio_read(block_no, block);
+	memcpy(block + offset, inode, sizeof(struct inode));
+	bio_write(block_no, block);
+	
 	return 0;
 }
 
