@@ -145,6 +145,8 @@ int get_avail_blkno() {
 /* 
  * inode operations
  */
+
+// Reads corresponding on-disk inode to an in-memory inode
 int readi(uint16_t ino, struct inode *inode) {
   // Step 1: Get the inode's on-disk block number
 	int block_no = calc_inode_block_no(ino);
@@ -158,6 +160,7 @@ int readi(uint16_t ino, struct inode *inode) {
 	return 0;
 }
 
+// Writes the in-memory inode to the disk inode
 int writei(uint16_t ino, struct inode *inode) {
 	// Step 1: Get the block number where this inode resides on disk
 	int block_no = calc_inode_block_no(ino);
@@ -168,7 +171,7 @@ int writei(uint16_t ino, struct inode *inode) {
 	bio_read(block_no, block);
 	memcpy(block + offset, inode, sizeof(struct inode));
 	bio_write(block_no, block);
-	
+
 	return 0;
 }
 
@@ -177,15 +180,29 @@ int writei(uint16_t ino, struct inode *inode) {
  * directory operations
  */
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
-
+	int entries_per_block = BLOCK_SIZE / sizeof(struct dirent);
   // Step 1: Call readi() to get the inode using ino (inode number of current directory)
-
+	struct inode directory_inode;
+	readi(ino, &directory_inode);
   // Step 2: Get data block of current directory from inode
-
-  // Step 3: Read directory's data block and check each directory entry.
-  //If the name matches, then copy directory entry to dirent structure
-
-	return 0;
+	char block[BLOCK_SIZE];
+	for (int i = 0; i < 16; i++) {
+		int data_block_ptr = directory_inode.direct_ptr[i];
+		if (data_block_ptr != -1) {
+			bio_read(data_block_ptr, block);
+			// Step 3: Read directory's data block and check each directory entry.
+			// If the name matches, then copy directory entry to dirent structure
+			struct dirent* entry = (struct dirent*)block;
+			for (int j = 0; j < entries_per_block; j++) {
+				if (entry[j].valid && strncmp(fname, entry[j].name, name_len) == 0) {
+					memcpy(dirent, &entry[j], sizeof(struct dirent));
+					return 0;
+				}
+			}
+		}
+	}
+	printf("No dirent found!\n");
+	return -1;
 }
 
 int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t name_len) {
@@ -282,7 +299,9 @@ static void rufs_destroy(void *userdata) {
 static int rufs_getattr(const char *path, struct stat *stbuf) {
 
 	// Step 1: call get_node_by_path() to get inode from path
-
+	uint16_t ino;
+	struct inode* inode;
+	get_node_by_path(path, ino, inode);
 	// Step 2: fill attribute of file into stbuf from inode
 
 		stbuf->st_mode   = S_IFDIR | 0755;

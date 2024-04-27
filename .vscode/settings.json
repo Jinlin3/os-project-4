@@ -1,5 +1,6 @@
 {
   "files.associations": {
-    "block.h": "c"
+    "block.h": "c",
+    "fcntl.h": "c"
   }
 }
