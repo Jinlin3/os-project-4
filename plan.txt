@@ -8,7 +8,7 @@ Suggested steps
 
 Disk Size = 32MB
 Block Size = 4KB
-Total Blocks = Disk Size / Block Size = 8192
+# of Blocks = Disk Size / Block Size = 8192
 
 Layout of disk:
 - Superblock

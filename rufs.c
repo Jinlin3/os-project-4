@@ -52,13 +52,13 @@ void superblock_init() {
 void inode_bitmap_init() {
 	inode_bitmap = malloc(BLOCK_SIZE);
 	memset(inode_bitmap, 0, BLOCK_SIZE);
-	bio_write(1, inode_bitmap);
+	bio_write(superblock->i_bitmap_blk, inode_bitmap);
 }
 
 void data_block_bitmap_init() {
 	data_block_bitmap = malloc(BLOCK_SIZE);
 	memset(data_block_bitmap, 0, BLOCK_SIZE);
-	bio_write(2, data_block_bitmap);
+	bio_write(superblock->d_bitmap_blk, data_block_bitmap);
 }
 
 // calculates the inode block number
@@ -100,28 +100,46 @@ void root_inode_init() {
 }
 
 int get_avail_ino() {
-
 	// Step 1: Read inode bitmap from disk
-	
+	bio_read(superblock->i_bitmap_blk, inode_bitmap);
 	// Step 2: Traverse inode bitmap to find an available slot
-
+	int available_slot = -1;
+	for (int i = 0; i < superblock->max_inum; i++) {
+		if (get_bitmap(inode_bitmap, i) == 0) {
+			available_slot = i;
+			set_bitmap(inode_bitmap, i);
+			break;
+		}
+	}
+	if (available_slot == -1) {
+		printf("No available inodes.\n");
+	}
 	// Step 3: Update inode bitmap and write to disk 
-
-	return 0;
+	bio_write(superblock->i_bitmap_blk, inode_bitmap);
+	return available_slot;
 }
 
 /* 
  * Get available data block number from bitmap
  */
 int get_avail_blkno() {
-
 	// Step 1: Read data block bitmap from disk
-	
+	bio_read(superblock->d_bitmap_blk, data_block_bitmap);
 	// Step 2: Traverse data block bitmap to find an available slot
-
-	// Step 3: Update data block bitmap and write to disk 
-
-	return 0;
+	int available_slot = -1;
+	for (int i = 0; i < superblock->max_dnum; i++) {
+		if (get_bitmap(data_block_bitmap, i) == 0) {
+			available_slot = i;
+			set_bitmap(data_block_bitmap, i);
+			break;
+		}
+	}
+	if (available_slot == -1) {
+		printf("No available data blocks.\n");
+	}
+	// Step 3: Update data block bitmap and write to disk
+	bio_write(superblock->d_bitmap_blk, data_block_bitmap);
+	return available_slot;
 }
 
 /* 
