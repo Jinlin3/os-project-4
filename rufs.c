@@ -179,6 +179,7 @@ int writei(uint16_t ino, struct inode *inode) {
 /* 
  * directory operations
  */
+// Searches for directory and if it exists, stores it into dirent
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
 	int entries_per_block = BLOCK_SIZE / sizeof(struct dirent);
   // Step 1: Call readi() to get the inode using ino (inode number of current directory)
@@ -205,21 +206,80 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 	return -1;
 }
 
+// Adds a new directory in the current directory's data blocks
 int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t name_len) {
-
 	// Step 1: Read dir_inode's data block and check each directory entry of dir_inode
-	
 	// Step 2: Check if fname (directory name) is already used in other entries
-
 	// Step 3: Add directory entry in dir_inode's data block and write to disk
-
 	// Allocate a new data block for this directory if it does not exist
-
 	// Update directory inode
-
 	// Write directory entry
 
-	return 0;
+	// Variables
+	int entries_per_block = BLOCK_SIZE / sizeof(struct dirent);
+	char data_block[BLOCK_SIZE];
+	int entry_added = 0;
+
+	// Checking to see if a directory already exists with the same name
+	struct dirent existing_entry;
+	if (dir_find(dir_inode.ino, fname, name_len, &existing_entry) == 0) {
+		printf("Directory already exists.\n");
+		return -1;
+	}
+
+	// Looking for existing memory block ; only memory block needs to be written to disk
+	for (int i = 0; i < 16; i++) {
+		if (dir_inode.direct_ptr[i] != -1) { // if direct ptr exists
+			bio_read(dir_inode.direct_ptr[i], data_block); // read data block to memory
+			struct dirent* entry = (struct dirent*)data_block; // preparing to read entries
+			for (int j = 0; j < entries_per_block; j++) {
+				if (!entry[j].valid) {
+					// setting entry
+					entry[j].ino = f_ino;
+					entry[j].valid = 1;
+					strncpy(entry[j].name, fname, name_len);
+					entry[j].len = name_len;
+					// writing data block to disk
+					bio_write(dir_inode.direct_ptr[i], data_block);
+					entry_added = 1;
+					break;
+				}
+			}
+		}
+	}
+
+	// If no existing memory blocks were found ; inode and memory block needs to be written to disk
+	int new_block_no = get_avail_blkno();
+	if (entry_added == 0 && get_avail_blkno() != -1) {
+		// Creating new block to add with the entry in it
+		char new_block[BLOCK_SIZE];
+		memset(new_block, 0, BLOCK_SIZE);
+		struct dirent* entry = (struct dirent*)new_block;
+		entry[0].ino = f_ino;
+		entry[0].valid = 1;
+		strncpy(entry[0].name, fname, name_len);
+		entry[0].len = name_len;
+		// Traverse direct pointers to find a spot
+		for (int i = 0; i < 16; i++) {
+			// If a block is -1, initialize it
+			if (dir_inode.direct_ptr[i] == -1) {
+				dir_inode.direct_ptr[i] = new_block_no;
+			  // write new block to disk
+				bio_write(new_block_no, new_block);
+				// write updated inode to disk
+				writei(dir_inode.ino, &dir_inode);
+				entry_added = 1;
+				break;
+			}
+		}
+	}
+
+	// Return 0 if success, -1 otherwise
+	if (entry_added == 1) {
+		return 0;
+	} else {
+		return -1;
+	}
 }
 
 // Required for 518
