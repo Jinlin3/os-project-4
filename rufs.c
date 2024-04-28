@@ -99,6 +99,71 @@ void root_inode_init() {
 	bio_write(inode_block_no, inode_block);
 }
 
+// Turns a path into an array of strings
+char** parse_path(const char* path) {
+	int index = 0; // number of strings in array
+	int capacity = 32;
+	char** array = malloc(sizeof(char*) * capacity); // array returned
+	char string[256]; // temporary string
+	int path_ptr = 0;
+	int string_ptr = 0;
+	// if absolute path, set index 0 to "/"
+	if (path[0] == '/') {
+		array[index] = strdup("/");
+		index++;
+		path_ptr++;
+	}
+
+	// Iterate through path string
+	while(path[path_ptr] != '\0') {
+		if (path[path_ptr] == '/') { // if '/', you reached the end of the string
+			string[string_ptr] = '\0'; // null terminate the string
+			array[index] = strdup(string);
+			string_ptr = 0; // reset inner pointer
+			index++;
+		} else { // else, copy the character into temp
+			string[string_ptr] = path[path_ptr];
+			string_ptr++;
+		}
+		path_ptr++;
+	}
+	// If the path doesn't end in a null terminator, add the last string
+	if (string_ptr > 0) {
+		string[string_ptr] = '\0';
+		array[index] = strdup(string);
+		index++;
+	}
+	array[index] = NULL;
+	return array;
+}
+
+// returns the length of a string
+int string_len(char* string) {
+	int length = 0;
+	for (int i = 0; string[i] != '\0'; i++) {
+		length++;
+	}
+	return length;
+}
+
+// returns the length of an array (assuming it is null terminated)
+int array_len(char** array) {
+	int length = 0;
+	for (int i = 0; array[i] != NULL; i++) {
+		length++;
+	}
+	return length;
+}
+
+// frees the array from parse_path()
+int free_array(char** array) {
+	for (int i = 0; array[i] != NULL; i++) {
+		free(array[i]);
+	}
+	free(array);
+	return 0;
+}
+
 int get_avail_ino() {
 	// Step 1: Read inode bitmap from disk
 	bio_read(superblock->i_bitmap_blk, inode_bitmap);
@@ -289,11 +354,42 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 
 /* 
  * namei operation
+ * path = string
+ * ino = root inode number of path
+ * inode = store the inode inside here
+ * USEFUL FUNCTIONS:
+ * readi() - Reads corresponding on-disk inode to an in-memory inode
+ * dir_find() - searches for dirent
  */
 int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	
 	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
 	// Note: You could either implement it in a iterative way or recursive way
+	char** array = parse_path(path);
+	int num_of_components = array_len(array);
+	if (!array) {
+		printf("Memory allocation error for array.\n");
+		return -1;
+	}
+	int array_pointer = 0;
+
+	// Implementation
+	struct dirent* dirent = malloc(sizeof(struct dirent));
+	struct inode* current_inode = malloc(sizeof(struct inode));
+	int name_len;
+	readi(ino, current_inode); // reads root inode
+	for (int i = 1; array[i] != NULL; i++) {
+		name_len = string_len(array[i]);
+		if (dir_find(current_inode->ino, array[i], name_len, dirent) == -1) {
+			printf("Directory is missing.\n");
+			return -1;
+		}
+		readi(dirent->ino, current_inode);
+	}
+	*inode = *current_inode;
+	free(dirent);
+	free(current_inode);
+	free_array(array);
 
 	return 0;
 }
